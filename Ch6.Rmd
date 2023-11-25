@@ -1,0 +1,289 @@
+---
+output:
+  html_document: default
+  word_document: default
+fontsize: 12pt
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<style>
+.column-left{
+  float: left;
+  width: 18%;
+  text-align: left;
+}
+.column-center{
+  display: inline-block;
+  width: 74%;
+  text-align: center;
+}
+.column-right{
+  float: right;
+  width: 28%;
+  text-align: right;
+}
+</style>
+
+<div class="column-left">
+
+</div>
+<div class = "column-center">
+<span style="color: grey">**Chapter 6: Structured population projection models**</span>
+
+</div>
+<div class = "column-right">
+```{r, out.width = "200px", echo=FALSE}
+knitr::include_graphics("C:/Users/mahdi/Desktop/CWPBook/Figs/CoverImage_Ed2.jpeg")
+```
+</div>
+
+---
+
+
+<br>
+
+## Objectives
+As you learned in the text, federally endangered Sierra Nevada bighorn sheep currently have the most restricted range and smallest abundance (about 400 individuals) of any subspecies of bighorn sheep in North America.  Here we will use matrix projections and sensitivity analysis to perform real-world analyses essentially identical to those actually performed for the recovery team. 
+
+
+## Construct a population matrix
+Sierra Nevada bighorn have three stages that are both individually observable and relevant to management activities: lamb, yearling, and adult.  Based on the hard work of dedicated field biologists (including several UM graduate students), vital rate data were estimated, including Adult Survival = 0.92, Yearling to Adult Survival = 0.92, Lamb to Yearling Survival = 0.74, and Adult Fecundity (female lambs per adult female) = 0.29 (note: in this case, yearlings that first transition to adults do not reproduce. Only females in the adult class reproduce). 
+
+
+```{r, out.width = "400px"}
+
+sheep    <- c(0, 0.74, 0, 0, 0, 0.92, 0.27, 0, 0.92) 
+age      <- c("lamb", "yearling", "adult")
+sheep_mx <- matrix(data = sheep, ncol = 3, nrow = 3, dimnames = list(age, age))
+print(sheep_mx)
+
+```
+
+## Matrix projections
+
+Let’s calculate asymptotic properties of the bighorn sheep matrix. Consider the initial population of 100 sheep in the year 2010 consists of 24 lambs, 26 yearlings, and 50 adults. We can project the population vector one year forward (from 2023 to 2024) by multiplying the vital rate matrix times the abundance vector. 
+
+```{r, results = "hide", out.width = "400px"}
+
+N1  <- c(24, 26, 50) # vector for initial abundance estimate
+N_t <- sheep_mx %*% N1
+print(N_t)
+
+```
+
+Likewise, we can project abundance 10 years forward. 
+
+```{r, results = "hide", out.width = "400px"}
+
+n_years    <- 10              # number of years to project population
+
+N_mx <- matrix(NA, 
+                   nrow     = length(age), 
+                   ncol     = n_years,
+                   dimnames = list(age, c(1:n_years)))	
+
+N_mx[, 1] <- N1               # fill in the initial abundance estimate
+for(t in 2 : n_years) {       # loop over each time step to fill in pop size
+  N_mx[, t] <- sheep_mx %*% N_mx[, t - 1]
+}
+
+N <- colSums(N_mx) 	          # calculate total abundance per year
+
+```
+
+With the projected abundances, one could find at which year this population achieves a stable stage distribution and the stable stage distribution for the three age classes. Recall from Chapter 5, we can calculate the population growth rate $\lambda$ at each time step. As you see below, from year 8, this population achieves a stable stage distribution at 1.078. This is called the asymptotic $\lambda$.
+
+```{r, results = "hide", out.width = "400px"}
+
+Ncomp <- apply(N_mx, 1, function(x) x / N)
+print(Ncomp)
+
+lambda <- NA
+for(t in 2 : n_years) {
+  lambda[t] <- N[t] / N[t - 1]  # calculate lambda for each time step
+} 
+
+round(lambda, 3)
+
+
+
+```
+	  
+
+## Sensitivity analysis
+We will continue with our Sierra Nevada bighorn sheep population. Performing manual perturbation sensitivity analysis to provide input into the most efficient recovery efforts for these at-risk populations.
+
+Suppose survival of lambs to yearlings increased by 5%, or survival of adults increased by 5%. These changes could affect the asymptotic population growth rate. This is analogous to a manual perturbation sensitivity analysis that incorporates the fact that management can change different vital rates by different amounts.  
+
+```{r, results = "hide", out.width = "400px"}
+
+s_mx <- sheep_mx
+s_mx["yearling","lamb"] <- sheep_mx["yearling","lamb"] + (sheep_mx["yearling","lamb"] * 0.05)
+
+N1  <- c(24, 26, 50)            # vector for initial abundance estimate
+N_t <- s_mx %*% N1
+
+n_years    <- 10                # number of years to project population
+
+N_mx <- matrix(NA, 
+                   nrow     = length(age), 
+                   ncol     = n_years,
+                   dimnames = list(age, c(1:n_years)))	
+
+N_mx[, 1] <- N1                 # fill in the initial abundance estimate
+for(t in 2 : n_years) {         # loop over each time step to fill in pop size
+  N_mx[, t] <- s_mx %*% N_mx[, t - 1]
+}
+
+N <- colSums(N_mx) 	            # calculate total abundance per year
+
+
+lambda <- NA
+for(t in 2 : n_years) {
+  lambda[t] <- N[t] / N[t - 1]  # calculate lambda for each time step
+} 
+
+round(lambda, 3)
+
+
+```
+
+
+## Population inertia
+An event, such as harvest, severe weather, translocation, release from a predator may prevent a population from being at stable stage distribution (SSD), which can lead to population inertia. To demonstrate this, let’s compare the projection you just did to a bighorn sheep population with exactly the same vital rates (e.g., matrix) and exactly the same initial total abundance, but with a different initial stage distribution.
+
+Suppose that following a mild winter, the population experienced a big pulse of lambs (50% more = 12 additional lambs = 36 initial lambs) and a subsequent high harvest of adults (removing 12 adults). So we have the same total abundance as before (100 total), but the initial distribution changed. 
+
+```{r, results = "hide", out.width = "400px"}
+
+N1  <- c(36, 26, 38)   # vector for initial abundance estimate
+N_t <- sheep_mx %*% N1
+print(N_t)
+
+```
+
+Now, if we project this population 10 years forward the asymptotic lambda for the three stages will be similar to the previous projection with a different initial abundance values. However, the stable stage distribution might be different.
+
+```{r, results = "hide", out.width = "400px"}
+
+n_years    <- 10              # number of years to project population
+
+N_mx <- matrix(NA, 
+                   nrow     = length(age), 
+                   ncol     = n_years,
+                   dimnames = list(age, c(1:n_years)))	
+
+N_mx[, 1] <- N1               # fill in the initial abundance estimate
+for(t in 2 : n_years) {       # loop over each time step to fill in pop size
+  N_mx[, t] <- sheep_mx %*% N_mx[, t - 1]
+}
+
+N <- colSums(N_mx) 	          # calculate total abundance per year
+
+lambda <- NA
+for(t in 2 : n_years) {
+  lambda[t] <- N[t] / N[t - 1]  # calculate lambda for each time step
+} 
+
+round(lambda, 3)
+
+
+```
+
+
+
+
+<div style = "background-color:beige;">
+**Practice:** 
+
+1. With the projected abundance in bighorn sheep example above, write code to find the year at which the population achieves 
+a stable stage distribution and the asymptotic growth rate $\lambda$.
+
+```{r, results = "hide", out.width = "400px"}
+
+lambda_s <- c(1, 1 + which(diff(round(lambda, 3))!= 0))
+lambda_s[length(lambda_s)]
+lambda[length(lambda_s)]
+
+```
+
+2. Use the R function eigen() to determine the dominant eigenvalue of the projection matrix N_mx and compare it to the asymptotic lambda.
+
+```{r, results = "hide", out.width = "400px"}
+eigen(sheep_mx)$values
+
+```
+
+3. How would a 5% increase in survival of adults affect the asymptotic $\lambda$? Compare the effect of 5% increase in adult survival with 5% increase in lamb survival; Which change gives the biggest change to $\lambda$? Which of the two age classes would you choose to protect if you wish to increase population abundance?
+
+```{r, results = "hide", out.width = "400px"}
+a_mx <- sheep_mx
+a_mx["adult","adult"] <- sheep_mx["adult","adult"] + (sheep_mx["adult","adult"] * 0.05)
+
+N1  <- c(24, 26, 50)            # vector for initial abundance estimate
+N_t <- a_mx %*% N1
+
+n_years    <- 10                # number of years to project population
+
+N_mx <- matrix(NA, 
+                   nrow     = length(age), 
+                   ncol     = n_years,
+                   dimnames = list(age, c(1:n_years)))	
+
+N_mx[, 1] <- N1                 # fill in the initial abundance estimate
+for(t in 2 : n_years) {         # loop over each time step to fill in pop size
+  N_mx[, t] <- a_mx %*% N_mx[, t - 1]
+}
+
+N <- colSums(N_mx) 	            # calculate total abundance per year
+
+
+lambda <- NA
+for(t in 2 : n_years) {
+  lambda[t] <- N[t] / N[t - 1]  # calculate lambda for each time step
+} 
+
+round(lambda, 3)
+
+
+```
+
+4. Visualize the number of individuals at each stage, and the total abundance, over time. These should all be on the same plot, using different colors for each stage and the total abundance and including a legend to say what each is. Make sure to label your axes. 
+
+```{r, out.width = "400px", fig.align = "center"}
+
+plot(  N,
+       xlim = c(1, n_years),
+       ylim = c(1, max(N)),
+       type = "l",
+       col = "black",
+       lwd = 3,
+       las = 2,
+       cex.lab = 1.4,
+       xlab = "Year",
+       ylab = "Abundance",
+       xaxt = "n",
+       main = "Bighorn Sheep Population Size Projections Across Age Classes"
+)	
+
+axis(1)
+
+lines(N_mx[1, ], col = "grey", lwd = 3) 
+lines(N_mx[2, ], col = "dodgerblue", lwd = 3) 
+lines(N_mx[3, ], col = "orange", lwd = 3)      # adult
+
+legend( "topleft",
+        legend = c("Total", "Yearling", "Two-year-old", "Adult"),
+        col    = c("black", "grey", "dodgerblue","orange"),
+        lty    = 1,
+        lwd    = 3
+)
+
+
+
+```
+
+</div>
